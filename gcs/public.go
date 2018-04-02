@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/smira/aptly/aptly"
 	"github.com/smira/aptly/files"
+	"github.com/smira/aptly/utils"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 	gcs "google.golang.org/api/storage/v1"
@@ -95,12 +96,11 @@ func (storage *PublishedStorage) RemoveDirs(path string, progress aptly.Progress
 	return nil
 }
 
-func (storage *PublishedStorage) LinkFromPool(publishedDirectory string, sourcePool aptly.PackagePool, sourcePath, sourceMD5 string, force bool) error {
+func (storage *PublishedStorage) LinkFromPool(publishedDirectory string, baseName string, sourcePool aptly.PackagePool, sourcePath string, sourceChecksums utils.ChecksumInfo, force bool) error {
 
 	// verify that package pool is local pool in filesystem
 	_ = sourcePool.(*files.PackagePool)
 
-	baseName := filepath.Base(sourcePath)
 	relPath := filepath.Join(publishedDirectory, baseName)
 	poolPath := filepath.Join(storage.prefix, relPath)
 
@@ -114,6 +114,10 @@ func (storage *PublishedStorage) LinkFromPool(publishedDirectory string, sourceP
 		return fmt.Errorf("error getting information about %s from %s: %s", poolPath, storage, err)
 	} else {
 		destinationMD5 := strings.Replace(dstKey.Etag, "\"", "", -1)
+		sourceMD5 := sourceChecksums.MD5
+		if sourceMD5 == "" {
+			return fmt.Errorf("unable to compare object, MD5 checksum missing")
+		}
 		if destinationMD5 == sourceMD5 {
 			return nil
 		}
@@ -177,4 +181,32 @@ func (storage *PublishedStorage) RenameFile(oldName, newName string) error {
 	_, err = storage.service.Rewrite(storage.bucketName, sourcePath, storage.bucketName, destPath, sourceObject).Do()
 
 	return err
+}
+
+// SymLink creates a symbolic link, which can be read with ReadLink
+func (storage *PublishedStorage) SymLink(src string, dst string) error {
+	return fmt.Errorf("GCS doesn't support symbolic links")
+}
+
+// HardLink creates a hardlink of a file
+func (storage *PublishedStorage) HardLink(src string, dst string) error {
+	return fmt.Errorf("GCS doesn't support hard links")
+}
+
+// FileExists returns true if path exists
+func (storage *PublishedStorage) FileExists(path string) (bool, error) {
+	fullPath := filepath.Join(storage.prefix, path)
+
+	getcall := storage.service.Get(storage.bucketName, fullPath)
+	_, err := getcall.IfGenerationNotMatch(0).Do()
+	if err == nil {
+		return true, nil
+	} else {
+		return false, err
+	}
+}
+
+// ReadLink returns the symbolic link pointed to by path
+func (storage *PublishedStorage) ReadLink(path string) (string, error) {
+	return "", fmt.Errorf("GCS doesn't support symbolic links")
 }
