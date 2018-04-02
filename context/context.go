@@ -366,7 +366,7 @@ func (context *AptlyContext) GetPublishedStorage(name string) aptly.PublishedSto
 				Fatal(err)
 			}
 		} else if strings.HasPrefix(name, "gs:") {
-			params, ok := context.Config().GCSPublishRoots[name[3:]]
+			params, ok := context.config().GCSPublishRoots[name[3:]]
 			if !ok {
 				Fatal(fmt.Errorf("published GCS storage %v not configured", name[3:]))
 			}
