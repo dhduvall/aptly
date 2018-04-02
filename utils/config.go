@@ -28,6 +28,7 @@ type ConfigStructure struct { // nolint: maligned
 	FileSystemPublishRoots map[string]FileSystemPublishRoot `json:"FileSystemPublishEndpoints"`
 	S3PublishRoots         map[string]S3PublishRoot         `json:"S3PublishEndpoints"`
 	SwiftPublishRoots      map[string]SwiftPublishRoot      `json:"SwiftPublishEndpoints"`
+	GCSPublishRoots        map[string]GCSPublishRoot        `json:"GCSPublishEndpoints"`
 }
 
 // FileSystemPublishRoot describes single filesystem publishing entry point
@@ -70,6 +71,14 @@ type SwiftPublishRoot struct {
 	Container      string `json:"container"`
 }
 
+// GCSPublishRoot describes single Google Cloud Storage publishing entry point
+// Authentication will be provided by gcloud tool when locally and
+// a service account or system default credentials on Compute Engine
+type GCSPublishRoot struct {
+	Bucket string `json:"bucket"`
+	Prefix string `json:"prefix"`
+}
+
 // Config is configuration for aptly, shared by all modules
 var Config = ConfigStructure{
 	RootDir:                filepath.Join(os.Getenv("HOME"), ".aptly"),
@@ -90,6 +99,7 @@ var Config = ConfigStructure{
 	FileSystemPublishRoots: map[string]FileSystemPublishRoot{},
 	S3PublishRoots:         map[string]S3PublishRoot{},
 	SwiftPublishRoots:      map[string]SwiftPublishRoot{},
+	GCSPublishRoots:        map[string]GCSPublishRoot{},
 }
 
 // LoadConfig loads configuration from json file
