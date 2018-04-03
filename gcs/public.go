@@ -187,7 +187,8 @@ func (storage *PublishedStorage) Filelist(prefix string) ([]string, error) {
 	panic("unreachable")
 }
 
-// RenameFile renames (moves) file
+// RenameFile renames (moves) file.  GCS doesn't have a rename operation, so we
+// do a copy/remove pair.
 func (storage *PublishedStorage) RenameFile(oldName, newName string) error {
 
 	sourcePath := filepath.Join(storage.prefix, oldName)
@@ -200,7 +201,11 @@ func (storage *PublishedStorage) RenameFile(oldName, newName string) error {
 	}
 
 	_, err = storage.service.Rewrite(storage.bucketName, sourcePath, storage.bucketName, destPath, sourceObject).Do()
+	if err != nil {
+		return err
+	}
 
+	err = storage.service.Delete(storage.bucketName, sourcePath).Do()
 	return err
 }
 
