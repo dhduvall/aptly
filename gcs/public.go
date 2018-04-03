@@ -1,6 +1,8 @@
 package gcs
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/smira/aptly/aptly"
@@ -12,7 +14,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 const (
@@ -116,10 +117,17 @@ func (storage *PublishedStorage) LinkFromPool(publishedDirectory string, baseNam
 	dstKey, err = storage.service.Get(storage.bucketName, poolPath).Do()
 
 	if err == nil {
-		destinationMD5 := strings.Replace(dstKey.Etag, "\"", "", -1)
+		// GCS gives us checksums encoded in Base64, not hex, so we need to convert to compare.
+		md5raw, _ := base64.StdEncoding.DecodeString(dstKey.Md5Hash)
+		destinationMD5 := hex.EncodeToString(md5raw)
 		sourceMD5 := sourceChecksums.MD5
+
+
 		if sourceMD5 == "" {
 			return fmt.Errorf("unable to compare object, MD5 checksum missing")
+		}
+		if destinationMD5 == "" {
+			return fmt.Errorf("No MD5 checksum on remote file '%s'; is it a composite object?", poolPath)
 		}
 		if destinationMD5 == sourceMD5 {
 			return nil
