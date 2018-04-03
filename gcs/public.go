@@ -2,12 +2,13 @@ package gcs
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/smira/aptly/aptly"
-	"github.com/smira/aptly/files"
 	"github.com/smira/aptly/utils"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 	gcs "google.golang.org/api/storage/v1"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -52,19 +53,25 @@ func (storage *PublishedStorage) MkDir(path string) error {
 func (storage *PublishedStorage) PutFile(path string, sourceFilename string) error {
 
 	source, err := os.Open(sourceFilename)
-	defer source.Close()
 	if err != nil {
 		return err
 	}
+	defer source.Close()
 
-	object := &gcs.Object{Name: filepath.Join(storage.prefix, path)}
-
-	_, err = storage.service.Insert(storage.bucketName, object).Media(source).Do()
+	err = storage.putFile(path, source)
 	if err != nil {
 		return fmt.Errorf("error uploading %s to %s: %s", sourceFilename, storage, err)
 	}
+	return err
+}
 
-	return nil
+func (storage *PublishedStorage) putFile(path string, source io.ReadSeeker) error {
+
+	object := &gcs.Object{Name: filepath.Join(storage.prefix, path)}
+
+	_, err := storage.service.Insert(storage.bucketName, object).Media(source).Do()
+
+	return err
 }
 
 // Remove removes single file under public path
@@ -98,9 +105,6 @@ func (storage *PublishedStorage) RemoveDirs(path string, progress aptly.Progress
 
 func (storage *PublishedStorage) LinkFromPool(publishedDirectory string, baseName string, sourcePool aptly.PackagePool, sourcePath string, sourceChecksums utils.ChecksumInfo, force bool) error {
 
-	// verify that package pool is local pool in filesystem
-	_ = sourcePool.(*files.PackagePool)
-
 	relPath := filepath.Join(publishedDirectory, baseName)
 	poolPath := filepath.Join(storage.prefix, relPath)
 
@@ -110,9 +114,8 @@ func (storage *PublishedStorage) LinkFromPool(publishedDirectory string, baseNam
 	)
 
 	dstKey, err = storage.service.Get(storage.bucketName, poolPath).Do()
-	if err != nil {
-		return fmt.Errorf("error getting information about %s from %s: %s", poolPath, storage, err)
-	} else {
+
+	if err == nil {
 		destinationMD5 := strings.Replace(dstKey.Etag, "\"", "", -1)
 		sourceMD5 := sourceChecksums.MD5
 		if sourceMD5 == "" {
@@ -128,7 +131,17 @@ func (storage *PublishedStorage) LinkFromPool(publishedDirectory string, baseNam
 		}
 	}
 
-	return storage.PutFile(relPath, sourcePath)
+	source, err := sourcePool.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	err = storage.putFile(relPath, source)
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf("error uploading %s to %s: %s", sourcePath, storage, poolPath))
+	}
+	return err
 }
 
 // Filelist returns list of files under prefix
