@@ -25,6 +25,7 @@ env:
     - NO_FTP_ACCESS: "yes"
     - BOTO_CONFIG: /dev/null
 before_install:
+  - env
   - virtualenv system/env
   - . system/env/bin/activate
   - pip install six packaging appdirs
